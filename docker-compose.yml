@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: libreria_assets
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./libreria_assets.sql:/docker-entrypoint-initdb.d/libreria_assets.sql
+    command: --default-authentication-plugin=mysql_native_password
+
+  backend:
+    build: ./backend-libreria-assets-main
+    container_name: backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: libreria_assets
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+      - "8003:8003"
+      - "8004:8004"
+      - "8005:8005"
+      - "8006:8006"
+
+  frontend:
+    build: ./frontend-libreria-assets-main
+    container_name: frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "4173:4173" 
