@@ -10,20 +10,7 @@ import ImageGrid from "./components/ImageGrid";
 import ViewImage from "./components/ViewImage";
 import { useSocket } from "./hooks/useSocket";
 import { Socket } from "socket.io-client";
-  const [selectedImage, setSelectedImage] = useState<any | null>(null);
-  const [lockedAssets, setLockedAssets] = useState<{ [id: number]: boolean }>({});
-  const socketRef = useSocket((socket: Socket) => {
-    socket.on("asset_locked", ({ asset_id, locked }) => {
-      setLockedAssets((prev) => ({ ...prev, [asset_id]: locked }));
-    });
-    socket.on("asset_unlocked", ({ asset_id }) => {
-      setLockedAssets((prev) => {
-        const copy = { ...prev };
-        delete copy[asset_id];
-        return copy;
-      });
-    });
-  });
+// Nota: no llames hooks fuera de un componente. Todo uso de hooks va dentro de App().
 import LogList from "./components/LogList";
 import AdminTabs from "./components/AdminTabs";
 import Layout from "./components/Layout";
@@ -59,6 +46,20 @@ export default function App() {
   const [images, setImages] = useState<any[]>([]);
   const [imagesLoading, setImagesLoading] = useState(false);
   const [imagesError, setImagesError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<any | null>(null);
+  const [lockedAssets, setLockedAssets] = useState<{ [id: number]: boolean }>({});
+  const socketRef = useSocket((socket: Socket) => {
+    socket.on("asset_locked", ({ asset_id, locked }) => {
+      setLockedAssets((prev) => ({ ...prev, [asset_id]: locked }));
+    });
+    socket.on("asset_unlocked", ({ asset_id }) => {
+      setLockedAssets((prev) => {
+        const copy = { ...prev };
+        delete copy[asset_id];
+        return copy;
+      });
+    });
+  });
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return localStorage.getItem('onboardingDismissed') !== 'true';
   });
