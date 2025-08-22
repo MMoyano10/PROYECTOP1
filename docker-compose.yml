@@ -1,6 +1,12 @@
+version: "3.8"
+
 services:
+  # =========================
+  # MySQL
+  # =========================
   db:
     image: mysql:8.0
+    container_name: proyectop1_db
     restart: always
     environment:
       MYSQL_DATABASE: libreria_assets
@@ -8,47 +14,136 @@ services:
       MYSQL_PASSWORD: password
       MYSQL_ROOT_PASSWORD: rootpassword
     ports:
-      - "3307:3306"
+      - "3307:3306"   # evita conflicto con MySQL del host
     volumes:
-      - ./libreria_assets.sql:/docker-entrypoint-initdb.d/libreria_assets.sql
+      - mysql_data:/var/lib/mysql
+      - ./libreria_assets.sql:/docker-entrypoint-initdb.d/libreria_assets.sql:ro
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prootpassword || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 30
+      start_period: 90s
+    networks:
+      - appnet
 
-  backend:
-    build: ./backend-libreria-assets-main
+  # =========================
+  # RabbitMQ
+  # =========================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: proyectop1_rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: appuser
+      RABBITMQ_DEFAULT_PASS: appsecret
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"    # protocolo AMQP
+      - "15672:15672"  # dashboard web
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - appnet
+
+  # =========================
+  # phpMyAdmin (opcional)
+  # =========================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: proyectop1_phpmyadmin
     restart: always
     depends_on:
       db:
         condition: service_healthy
     environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: user
+      PMA_PASSWORD: password
+      UPLOAD_LIMIT: 64M
+    ports:
+      - "8080:80"
+    networks:
+      - appnet
+
+  # =========================
+  # Backend (FastAPI gateway)
+  # =========================
+  backend:
+    build:
+      context: ./backend-libreria-assets-main
+      dockerfile: Dockerfile
+    container_name: proyectop1_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # Base de datos
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: user
       DB_PASSWORD: password
       DB_NAME: libreria_assets
+      DATABASE_URL: mysql+pymysql://user:password@db:3306/libreria_assets
+
+      # RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: appuser
+      RABBITMQ_PASSWORD: appsecret
+      RABBITMQ_VHOST: "/"
+
+      # OAuth / config
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       SESSION_SECRET: ${SESSION_SECRET}
       FRONTEND_URL: "http://localhost:4173"
       BACKEND_GATEWAY_URL: "http://localhost:8000"
+    # Espera activa antes de arrancar Uvicorn
+    command: >
+      sh -c "
+      until nc -z db 3306; do echo 'esperando MySQL...'; sleep 2; done;
+      until nc -z rabbitmq 5672; do echo 'esperando RabbitMQ...'; sleep 2; done;
+      uvicorn server:app --host 0.0.0.0 --port 8000
+      "
     ports:
       - "8000:8000"
-      - "8001:8001"
-      - "8002:8002"
-      - "8003:8003"
-      - "8004:8004"
-      - "8005:8005"
-      - "8006:8006"
+    networks:
+      - appnet
+    volumes:
+      - ./logs:/app/logs
 
+  # =========================
+  # Frontend
+  # =========================
   frontend:
-    build: ./frontend-libreria-assets-main
+    build:
+      context: ./frontend-libreria-assets-main
+      dockerfile: Dockerfile
+    container_name: proyectop1_frontend
     restart: always
     depends_on:
       - backend
     ports:
-      - "4173:4173" 
+      - "4173:4173"
+    networks:
+      - appnet
+
+volumes:
+  mysql_data:
+  rabbitmq_data:
+
+networks:
+  appnet:
+    driver: bridge

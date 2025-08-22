@@ -1,12 +1,254 @@
+version: '3.8'
+
 services:
-  backend:
+  # Base de datos MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: libreria_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: libreria_assets
+      MYSQL_USER: libreria
+      MYSQL_PASSWORD: libreria123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./libreria_assets.sql:/docker-entrypoint-initdb.d/libreria_assets.sql
+    networks:
+      - libreria_network
+
+  # RabbitMQ para mensajería
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: libreria_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - libreria_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway
+  api_gateway:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    env_file: .env
+      dockerfile: Dockerfile
+    container_name: libreria_api_gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=libreria
+      - MYSQL_PASSWORD=libreria123
+      - MYSQL_DATABASE=libreria_assets
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
     depends_on:
       mysql:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - libreria_network
+    volumes:
+      - ./logs:/app/logs
+
+  # Assets Service
+  assets_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: libreria_assets_service
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=libreria
+      - MYSQL_PASSWORD=libreria123
+      - MYSQL_DATABASE=libreria_assets
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - SERVICE_NAME=assets_service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - libreria_network
+    volumes:
+      - ./logs:/app/logs
+      - ./assets_service/static:/app/assets_service/static
+
+  # Categories Service
+  categories_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: libreria_categories_service
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=libreria
+      - MYSQL_PASSWORD=libreria123
+      - MYSQL_DATABASE=libreria_assets
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - SERVICE_NAME=categories_service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - libreria_network
+    volumes:
+      - ./logs:/app/logs
+
+  # Tags Service
+  tags_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: libreria_tags_service
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=libreria
+      - MYSQL_PASSWORD=libreria123
+      - MYSQL_DATABASE=libreria_assets
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - SERVICE_NAME=tags_service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - libreria_network
+    volumes:
+      - ./logs:/app/logs
+
+  # Asset Tags Service
+  assettags_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: libreria_assettags_service
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=libreria
+      - MYSQL_PASSWORD=libreria123
+      - MYSQL_DATABASE=libreria_assets
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - SERVICE_NAME=assettags_service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - libreria_network
+    volumes:
+      - ./logs:/app/logs
+
+  # Users Service
+  users_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: libreria_users_service
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=libreria
+      - MYSQL_PASSWORD=libreria123
+      - MYSQL_DATABASE=libreria_assets
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - SERVICE_NAME=users_service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - libreria_network
+    volumes:
+      - ./logs:/app/logs
+
+  # Logs Service
+  logs_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: libreria_logs_service
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=libreria
+      - MYSQL_PASSWORD=libreria123
+      - MYSQL_DATABASE=libreria_assets
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - SERVICE_NAME=logs_service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - libreria_network
+    volumes:
+      - ./logs:/app/logs
+
+  # Frontend
+  frontend:
+    build:
+      context: ../frontend-libreria-assets-main
+      dockerfile: Dockerfile
+    container_name: libreria_frontend
     ports:
-      - "8000:8000"
-    command: uvicorn server:app --host 0.0.0.0 --port 8000 
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - api_gateway
+    networks:
+      - libreria_network
+
+volumes:
+  mysql_data:
+  rabbitmq_data:
+
+networks:
+  libreria_network:
+    driver: bridge
