@@ -8,4 +8,8 @@ python-json-logger==2.0.7
 colorama==0.4.6
 httpx==0.25.2
 PyJWT==2.8.0 
-email-validator 
+email-validator
+
+# Dependencias del módulo de mensajería RabbitMQ
+aio-pika==9.3.1
+pydantic-settings==2.7.1 

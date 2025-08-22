@@ -1,0 +1,5 @@
+# Dependencias para el módulo de mensajería RabbitMQ
+aio-pika==9.3.1
+pydantic==2.7.1
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
