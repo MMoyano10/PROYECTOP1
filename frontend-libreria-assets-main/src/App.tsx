@@ -1,6 +1,7 @@
 // frontend-libreria-assets-main/src/App.tsx
 
 import React, { useEffect, useState } from "react";
+import type { AxiosError } from "axios";
 import { api } from "./api";
 import AuthForm from "./components/AuthForm";
 import CategoryGrid from "./components/CategoryGrid";
@@ -57,7 +58,20 @@ export default function App() {
 
   // 1) Al montar, chequeamos si ya hay un usuario guardado en localStorage
   useEffect(() => {
+    // Si tenemos token pero no user, intentamos cargar /users/me
+    const token = localStorage.getItem('access_token');
     const stored = localStorage.getItem("currentUser");
+    if (token && !stored) {
+      api.get<User>('/users/me')
+        .then((res: { data: User }) => {
+          localStorage.setItem('currentUser', JSON.stringify(res.data as User));
+          setCurrentUser(res.data as User);
+        })
+        .catch(() => {
+          // token inválido
+          localStorage.removeItem('access_token');
+        });
+    }
     if (stored) {
       try {
         const u: User = JSON.parse(stored);
@@ -112,10 +126,11 @@ export default function App() {
           "X-User-Id": String(currentUser.id_usuario),
         },
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
+        const e = err as AxiosError<any>;
         // En caso de error 422/500, imprímelo para depurar
-        if (err.response && err.response.data) {
-          console.error("Detalle error al crear log:", err.response.data);
+        if (e?.response?.data) {
+          console.error("Detalle error al crear log:", e.response.data);
         } else {
           console.error("Error al crear log:", err);
         }
@@ -144,10 +159,10 @@ export default function App() {
       setImagesError(null);
       api
         .get(`/assets/?category=${selectedCategoryId}&tag=${selectedTagId}`)
-        .then((res) => {
-          setImages(res.data);
+        .then((res: { data: any[] }) => {
+          setImages(res.data as any[]);
         })
-        .catch((err) => {
+        .catch((_err: unknown) => {
           setImagesError("Error al cargar imágenes");
           setImages([]);
         })
@@ -174,8 +189,24 @@ export default function App() {
             setCurrentUser(loginData.user);
             localStorage.setItem("currentUser", JSON.stringify(loginData.user));
           }}
-          onLoginError={(msg) => showToast(msg, 'error')}
+          onLoginError={(msg: string) => showToast(msg, 'error')}
         />
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <a
+            href="http://localhost:8000/api/users/auth/google"
+            style={{
+              display: 'inline-block',
+              padding: '10px 16px',
+              borderRadius: 6,
+              background: '#4285F4',
+              color: 'white',
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Continuar con Google
+          </a>
+        </div>
         <Footer />
       </>
     );
@@ -191,7 +222,7 @@ export default function App() {
           userName={currentUser.nombre}
           isAdmin={false}
           onLogout={handleLogout}
-          onToggleDarkMode={() => setDarkMode((d) => !d)}
+          onToggleDarkMode={() => setDarkMode((d: boolean) => !d)}
           darkMode={darkMode}
         />
         <Layout title="Mi Librería de Imágenes">
@@ -237,7 +268,7 @@ export default function App() {
         userName={currentUser.nombre}
         isAdmin={true}
         onLogout={handleLogout}
-        onToggleDarkMode={() => setDarkMode((d) => !d)}
+  onToggleDarkMode={() => setDarkMode((d: boolean) => !d)}
         darkMode={darkMode}
       />
       <Layout title="Panel de Administración">

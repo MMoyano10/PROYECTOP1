@@ -99,6 +99,23 @@ const AuthForm: React.FC<AuthFormProps> = ({ onLoginSuccess, onLoginError }) => 
             {loading ? "Autenticando…" : "Ingresar"}
           </button>
         </form>
+        <div style={{ textAlign: 'center', marginTop: theme.spacing.md }}>
+          <div style={{ color: '#666', marginBottom: theme.spacing.sm }}>o</div>
+          <a
+            href="http://localhost:8000/api/users/auth/google"
+            style={{
+              display: 'inline-block',
+              padding: '10px 16px',
+              borderRadius: 6,
+              background: '#4285F4',
+              color: 'white',
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Continuar con Google
+          </a>
+        </div>
       </Card>
     </Layout>
   );

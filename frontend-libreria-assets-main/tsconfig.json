@@ -13,7 +13,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "Node",
-    "types": ["vite/client"]    // para que Vite inyecte sus tipos
+  "types": ["vite/client"]
   },
   "include": ["src", "src/api.ts"]
 }

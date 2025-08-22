@@ -11,14 +11,16 @@ import jwt
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
+from authlib.integrations.starlette_client import OAuth
 
 # IMPORTS RELATIVOS dentro del paquete users_service
 from . import schemas, crud, models
 from .database import SessionLocal, engine
 
 # Configuración JWT
-SECRET_KEY = "tu_clave_secreta_super_segura_aqui_cambiala_en_produccion"
+SECRET_KEY = os.environ.get("SESSION_SECRET", "change_me_in_prod")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -32,6 +34,9 @@ models.Base.metadata.create_all(bind=engine)
 logger = setup_logging("users_service")
 
 app = FastAPI(title="Users Service")
+
+# Session middleware para OAuth
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", https_only=False)
 
 # Habilitar CORS
 app.add_middleware(
@@ -345,3 +350,79 @@ async def delete_user(
     )
     
     return {"detail": "Usuario eliminado correctamente"}
+
+# ============================================
+# Google OAuth 2.0 endpoints
+# ============================================
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:4173")
+BACKEND_GATEWAY_URL = os.environ.get("BACKEND_GATEWAY_URL", "http://localhost:8000")
+
+oauth = OAuth()
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    oauth.register(
+        name="google",
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
+
+@app.get("/auth/google")
+async def auth_google(request: Request):
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=500, detail="Faltan credenciales de Google")
+    # Construir dinámicamente el redirect_uri usando el host real de la petición
+    redirect_uri = str(request.url_for("auth_google_callback"))
+    logger.info({"oauth": "google", "redirect_uri": redirect_uri})
+    # Limpia estados antiguos para evitar que la cookie de sesión crezca y cause mismatch
+    try:
+        for k in list(request.session.keys()):
+            if str(k).startswith("_state_google_"):
+                request.session.pop(k, None)
+    except Exception as e:
+        logger.warning({"event": "oauth_cleanup_state_failed", "error": str(e)})
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+@app.get("/auth/google/callback")
+async def auth_google_callback(request: Request, db: Session = Depends(get_db)):
+    # Intenta canjear el token; si hay mismatch de state, limpia y reintenta el flujo
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception as e:
+        logger.error({
+            "event": "oauth_callback_error",
+            "error": str(e)
+        })
+        # Limpiar estados antiguos y reiniciar el flujo para regenerar state/nonce
+        try:
+            for k in list(request.session.keys()):
+                if str(k).startswith("_state_google_"):
+                    request.session.pop(k, None)
+        except Exception as ce:
+            logger.warning({"event": "oauth_cleanup_state_failed", "error": str(ce)})
+        # Redirige a iniciar OAuth nuevamente
+        restart_url = str(request.url_for("auth_google"))
+        return RedirectResponse(url=restart_url, status_code=302)
+    userinfo = token.get("userinfo")
+    if not userinfo:
+        resp = await oauth.google.get("https://openidconnect.googleapis.com/v1/userinfo", token=token)
+        userinfo = resp.json()
+    email = userinfo.get("email")
+    name = userinfo.get("name") or userinfo.get("given_name") or "Usuario"
+    if not email:
+        raise HTTPException(status_code=400, detail="No se pudo obtener el email del usuario")
+
+    # Crear o recuperar usuario local
+    user = crud.get_user_by_email(db, email)
+    if not user:
+        user = crud.create_user(db, schemas.UserCreate(nombre=name, email=email, password="oauth_google"))
+
+    # Emitir JWT local
+    access_token = create_access_token({"sub": str(user.id_usuario)})
+
+    # Redirigir al frontend con token y datos básicos
+    url = f"{FRONTEND_URL}/?token={access_token}&name={name}&email={email}"
+    return RedirectResponse(url=url, status_code=302)

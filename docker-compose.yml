@@ -28,6 +28,11 @@ services:
       DB_USER: user
       DB_PASSWORD: password
       DB_NAME: libreria_assets
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+      FRONTEND_URL: "http://localhost:4173"
+      BACKEND_GATEWAY_URL: "http://localhost:8000"
     ports:
       - "8000:8000"
       - "8001:8001"

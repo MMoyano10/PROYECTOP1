@@ -62,8 +62,6 @@ def read_assets(
 # Quitar el prefijo para que las rutas sean correctas
 app.include_router(assets.router)
 
-app.mount("/static", StaticFiles(directory="assets_service/static"), name="static")
-
 @app.options("/login")
 async def options_login():
     return JSONResponse(content={}, status_code=200)
