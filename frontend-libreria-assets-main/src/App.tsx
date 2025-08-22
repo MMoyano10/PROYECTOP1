@@ -7,6 +7,23 @@ import AuthForm from "./components/AuthForm";
 import CategoryGrid from "./components/CategoryGrid";
 import TagGrid from "./components/TagGrid";
 import ImageGrid from "./components/ImageGrid";
+import ViewImage from "./components/ViewImage";
+import { useSocket } from "./hooks/useSocket";
+import { Socket } from "socket.io-client";
+  const [selectedImage, setSelectedImage] = useState<any | null>(null);
+  const [lockedAssets, setLockedAssets] = useState<{ [id: number]: boolean }>({});
+  const socketRef = useSocket((socket: Socket) => {
+    socket.on("asset_locked", ({ asset_id, locked }) => {
+      setLockedAssets((prev) => ({ ...prev, [asset_id]: locked }));
+    });
+    socket.on("asset_unlocked", ({ asset_id }) => {
+      setLockedAssets((prev) => {
+        const copy = { ...prev };
+        delete copy[asset_id];
+        return copy;
+      });
+    });
+  });
 import LogList from "./components/LogList";
 import AdminTabs from "./components/AdminTabs";
 import Layout from "./components/Layout";
@@ -149,8 +166,9 @@ export default function App() {
     enviarLog(`Seleccionó tag: ${tagId}`);
   };
 
-  const onImageClick = (filename: string) => {
-    enviarLog(`Visualizó imagen: ${filename}`);
+  const onImageClick = (image: any) => {
+    setSelectedImage(image);
+    enviarLog(`Visualizó imagen: ${image.filename || image.nombre}`);
   };
 
   useEffect(() => {
@@ -249,6 +267,14 @@ export default function App() {
                 <ImageGrid
                   images={images}
                   onImageClick={onImageClick}
+                />
+              )}
+              {selectedImage && socketRef.current && (
+                <ViewImage
+                  image={selectedImage}
+                  socket={socketRef.current}
+                  onClose={() => setSelectedImage(null)}
+                  locked={lockedAssets[selectedImage.id_asset] && lockedAssets[selectedImage.id_asset] !== false}
                 />
               )}
             </>
