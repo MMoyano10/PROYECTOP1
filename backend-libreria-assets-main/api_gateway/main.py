@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 import users_service.main       as users_app
 import categories_service.main  as categories_app
@@ -10,14 +11,17 @@ import logs_service.main        as logs_app
 
 app = FastAPI(title="API Gateway - Librería de Imágenes")
 
-origins = ["*"]  # Allow all origins for development; change to specific origins in production
+# CORS: cuando allow_credentials=True, no se permite "*" como origen.
+# Leemos FRONTEND_URL desde variables de entorno y hacemos fallback a localhost:4173.
+frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:4173")
+origins = [frontend_url, "http://127.0.0.1:4173", "http://localhost:5173", "http://127.0.0.1:5173"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "Authorization"],
 )
 
 # Montaje de microservicios REST bajo /api/…

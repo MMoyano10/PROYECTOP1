@@ -38,13 +38,14 @@ app = FastAPI(title="Users Service")
 # Session middleware para OAuth
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", https_only=False)
 
-# Habilitar CORS
+# Habilitar CORS: cuando allow_credentials=True no se permite "*" como origen
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:4173")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[FRONTEND_URL, "http://127.0.0.1:4173", "http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "Authorization"],
 )
 
 @app.middleware("http")
@@ -243,6 +244,11 @@ async def options_login():
 @app.get("/me", response_model=schemas.UserOut)
 async def get_current_user_info(current_user = Depends(get_current_user)):
     return current_user
+
+# Preflight handler explícito por si algún proxy no maneja bien OPTIONS
+@app.options("/me")
+async def options_me():
+    return JSONResponse(content={}, status_code=200)
 
 # -------------------------------
 # 2.2) Logout de usuario (POST /logout)
